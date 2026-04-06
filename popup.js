@@ -7,7 +7,7 @@ const toggleBtn  = document.getElementById("toggleBtn");
 const CLIENT_ID = "38606";
 
 document.getElementById("loginBtn").addEventListener("click", () => {
-  const url = `https://anilist.co/api/v2/oauth/authorize?client_id=${CLIENT_ID}&response_type=code`;
+  const url = `https://anilist.co/api/v2/oauth/authorize?client_id=${CLIENT_ID}&response_type=token`;
 
   // Öffnet Login Fenster
   chrome.tabs.create({ url });
