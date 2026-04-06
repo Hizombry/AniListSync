@@ -28,11 +28,6 @@ Animes schnell und einfach zur eigenen Liste hinzuzufügen.
     -   🔎 Mit diesem Titel auf AniList suchen\
     -   ✅ Das **beste passende Ergebnis** auswählen
 
--   Popup enthält einen Button:
-    -   👉 „Mit AniList verbinden"
--   Nutzer kann:
-    -   sein Konto verknüpfen
-    -   Token direkt verwenden
 - automatisch deutsch sub auswählen
 
 **Edge Case (wichtig):** - Wenn ein Anime auf AniWorld mehrere Staffeln

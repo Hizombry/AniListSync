@@ -15,14 +15,41 @@ let cachedAnimeData = null;
 // ─────────────────────────────────────────────
 function parseAniWorldURL(url) {
   const match = url.match(
-    /aniworld\.to\/anime\/stream\/([^/]+)\/staffel-(\d+)\/episode-(\d+)/
+      /aniworld\.to\/anime\/stream\/([^/]+)\/staffel-(\d+)\/episode-(\d+)/
   );
   if (!match) return null;
   const slug = match[1];
   const season = parseInt(match[2]);
   const episode = parseInt(match[3]);
   const title = slug.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-  return { slug, title, season, episode };
+  return { slug, title, season, episode, pageType: "episode" };
+}
+
+// Erkennt Staffel-Seite: /anime/stream/[slug]/staffel-[n]
+// oder Anime-Hauptseite: /anime/stream/[slug]
+function parseAniWorldOverviewURL(url) {
+  // Staffel-Seite
+  const seasonMatch = url.match(
+      /aniworld\.to\/anime\/stream\/([^/]+)\/staffel-(\d+)\/?(?:\?.*)?$/
+  );
+  if (seasonMatch) {
+    const slug = seasonMatch[1];
+    const season = parseInt(seasonMatch[2]);
+    const title = slug.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+    return { slug, title, season, episode: null, pageType: "season" };
+  }
+
+  // Anime-Hauptseite
+  const animeMatch = url.match(
+      /aniworld\.to\/anime\/stream\/([^/]+)\/?(?:\?.*)?$/
+  );
+  if (animeMatch) {
+    const slug = animeMatch[1];
+    const title = slug.split("-").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+    return { slug, title, season: 1, episode: null, pageType: "anime" };
+  }
+
+  return null;
 }
 
 // ─────────────────────────────────────────────
@@ -59,7 +86,7 @@ function getOrCreateBadge() {
           </div>
         </div>
         <div id="at-progress-container" style="width:100%; height:6px; background:#313244; border-radius:3px; overflow:hidden; margin-bottom:4px;">
-          <div id="at-progress" style="width:0%; height:100%; background:#89b4fa; transition:width 1s linear;"></div>
+          <div id="at-progress" style="width:0; height:100%; background:#89b4fa; transition:width 1s linear;"></div>
         </div>
         <div id="at-status-text" style="font-size:11px; color:#9399b2; text-align:center; margin-top:4px;"></div>
       </div>
@@ -148,7 +175,7 @@ function renderBadgeAnimeInfo(anime) {
   const statusLabel = statusMap[anime.status] || anime.status;
   const statusColor = anime.status === "RELEASING" ? "#a6e3a1" : "#6c7086";
   const genres = (anime.genres || []).slice(0, 3).map(g =>
-    `<span style="background:#313244;border-radius:4px;padding:2px 6px;font-size:10px;color:#89b4fa;">${g}</span>`
+      `<span style="background:#313244;border-radius:4px;padding:2px 6px;font-size:10px;color:#89b4fa;">${g}</span>`
   ).join("");
   let desc = (anime.description || "").replace(/<[^>]*>/g, "").trim();
   if (desc.length > 120) desc = desc.slice(0, 117) + "…";
@@ -218,7 +245,6 @@ function injectAniListBar(info, anime) {
   const progressLabel = `${entry?.progress ?? 0}/${anime.episodes ?? "?"}`;
   const avgScore = anime.averageScore ?? "–";
   const anilistUrl = `https://anilist.co/anime/${anime.id}`;
-  const hasToken = entry !== undefined; // null = logged in but not in list, undefined = no token
 
   const CELL = `padding:10px 16px; border-right:1px solid #30363d; cursor:pointer;
     user-select:none; transition:background 0.15s; position:relative; overflow:visible;`;
@@ -279,8 +305,8 @@ function injectAniListBar(info, anime) {
       <span class="al-val" id="al-v-status">${statusLabel}<span class="al-hint">${entry !== undefined ? "▾" : ""}</span></span>
       <div class="al-drop" id="al-d-status">
         ${Object.entries(STATUS_MAP).map(([k,v]) =>
-          `<div class="al-ditem${entry?.status === k ? " active" : ""}" data-s="${k}">${v}</div>`
-        ).join("")}
+      `<div class="al-ditem${entry?.status === k ? " active" : ""}" data-s="${k}">${v}</div>`
+  ).join("")}
       </div>
     </div>
 
@@ -333,20 +359,20 @@ function injectAniListBar(info, anime) {
       const newStatus = item.dataset.s;
       item.textContent = "Speichert…";
       chrome.runtime.sendMessage(
-        { type: "SAVE_LIST_ENTRY", payload: { mediaId: animeId, status: newStatus } },
-        (res) => {
-          closeAllBarPopups();
-          if (res?.success) {
-            document.getElementById("al-v-status").innerHTML =
-              `${STATUS_MAP[newStatus]}<span class="al-hint">▾</span>`;
-            ddStatus.querySelectorAll(".al-ditem").forEach(i => {
-              i.className = "al-ditem" + (i.dataset.s === newStatus ? " active" : "");
-              i.textContent = STATUS_MAP[i.dataset.s];
-            });
-          } else {
-            ddStatus.querySelectorAll(".al-ditem").forEach(i => { i.textContent = STATUS_MAP[i.dataset.s]; });
+          { type: "SAVE_LIST_ENTRY", payload: { mediaId: animeId, status: newStatus } },
+          (res) => {
+            closeAllBarPopups();
+            if (res?.success) {
+              document.getElementById("al-v-status").innerHTML =
+                  `${STATUS_MAP[newStatus]}<span class="al-hint">▾</span>`;
+              ddStatus.querySelectorAll(".al-ditem").forEach(i => {
+                i.className = "al-ditem" + (i.dataset.s === newStatus ? " active" : "");
+                i.textContent = STATUS_MAP[i.dataset.s];
+              });
+            } else {
+              ddStatus.querySelectorAll(".al-ditem").forEach(i => { i.textContent = STATUS_MAP[i.dataset.s]; });
+            }
           }
-        }
       );
     };
   });
@@ -367,17 +393,17 @@ function injectAniListBar(info, anime) {
     if (isNaN(val) || val < 0) { fb.style.color = "#f85149"; fb.textContent = "Ungültige Zahl"; return; }
     fb.style.color = "#8b949e"; fb.textContent = "Speichert…";
     chrome.runtime.sendMessage(
-      { type: "SAVE_LIST_ENTRY", payload: { mediaId: animeId, progress: val } },
-      (res) => {
-        if (res?.success) {
-          document.getElementById("al-v-ep").innerHTML =
-            `${val}/${anime.episodes ?? "?"}<span class="al-hint">✎</span>`;
-          fb.style.color = "#3fb950"; fb.textContent = "✅ Gespeichert!";
-          setTimeout(() => closeAllBarPopups(), 800);
-        } else {
-          fb.style.color = "#f85149"; fb.textContent = "❌ Fehler";
+        { type: "SAVE_LIST_ENTRY", payload: { mediaId: animeId, progress: val } },
+        (res) => {
+          if (res?.success) {
+            document.getElementById("al-v-ep").innerHTML =
+                `${val}/${anime.episodes ?? "?"}<span class="al-hint">✎</span>`;
+            fb.style.color = "#3fb950"; fb.textContent = "✅ Gespeichert!";
+            setTimeout(() => closeAllBarPopups(), 800);
+          } else {
+            fb.style.color = "#f85149"; fb.textContent = "❌ Fehler";
+          }
         }
-      }
     );
   };
 
@@ -415,17 +441,17 @@ function injectAniListBar(info, anime) {
     if (isNaN(val) || val < 1 || val > 10) { fb.style.color = "#f85149"; fb.textContent = "Bitte 1–10 eingeben"; return; }
     fb.style.color = "#8b949e"; fb.textContent = "Speichert…";
     chrome.runtime.sendMessage(
-      { type: "RATE_ANIME", payload: { ...currentAnimeInfo, score: val } },
-      (res) => {
-        if (res?.success) {
-          document.getElementById("al-v-rate").innerHTML =
-            `${val}<span class="al-hint">✎</span>`;
-          fb.style.color = "#3fb950"; fb.textContent = "✅ Gespeichert!";
-          setTimeout(() => closeAllBarPopups(), 800);
-        } else {
-          fb.style.color = "#f85149"; fb.textContent = "❌ Fehler";
+        { type: "RATE_ANIME", payload: { ...currentAnimeInfo, score: val } },
+        (res) => {
+          if (res?.success) {
+            document.getElementById("al-v-rate").innerHTML =
+                `${val}<span class="al-hint">✎</span>`;
+            fb.style.color = "#3fb950"; fb.textContent = "✅ Gespeichert!";
+            setTimeout(() => closeAllBarPopups(), 800);
+          } else {
+            fb.style.color = "#f85149"; fb.textContent = "❌ Fehler";
+          }
         }
-      }
     );
   };
 
@@ -444,7 +470,8 @@ function closeAllBarPopups() {
 }
 
 function insertBarIntoPage(bar) {
-  const selectors = [
+  // Selektoren für Episode-Seiten
+  const episodeSelectors = [
     ".hosterSite",
     "#streamLinks",
     ".episodesList",
@@ -454,7 +481,22 @@ function insertBarIntoPage(bar) {
     ".series-container",
     "#stream",
   ];
-  for (const sel of selectors) {
+
+  // Selektoren für Übersichts-/Staffelseiten
+  const overviewSelectors = [
+    ".seriesContentBox",
+    ".series-details",
+    ".seasonsList",
+    ".episodes",
+    "#seasonEpisodesList",
+    ".seriesCover",
+    ".seriesDescription",
+    ".coverWrapper",
+  ];
+
+  const allSelectors = [...episodeSelectors, ...overviewSelectors];
+
+  for (const sel of allSelectors) {
     const el = document.querySelector(sel);
     if (el) { el.parentNode.insertBefore(bar, el); return; }
   }
@@ -473,23 +515,41 @@ function fetchAndRenderAll(info) {
     container.style.display = "flex";
   }
   chrome.runtime.sendMessage(
-    { type: "GET_ANIME_INFO", payload: { title: info.title, season: info.season } },
-    (response) => {
-      cachedAnimeData = response?.success ? response.anime : null;
-      renderBadgeAnimeInfo(cachedAnimeData);
-      tryInjectBar(info, cachedAnimeData, 20);
-    }
+      { type: "GET_ANIME_INFO", payload: { title: info.title, season: info.season } },
+      (response) => {
+        cachedAnimeData = response?.success ? response.anime : null;
+        renderBadgeAnimeInfo(cachedAnimeData);
+        tryInjectBar(info, cachedAnimeData, 20);
+      }
   );
 }
 
 function tryInjectBar(info, anime, retries) {
-  const found = [".hosterSite","#streamLinks",".episodesList","h2.seasonEpisodeTitle",".hosterSiteDirectNav",".tabsContainer"]
-    .some(sel => document.querySelector(sel));
-  if (found || retries <= 0) {
+  const episodeFound = [".hosterSite","#streamLinks",".episodesList","h2.seasonEpisodeTitle",".hosterSiteDirectNav",".tabsContainer"].some(sel => document.querySelector(sel));
+  const overviewFound = [".seriesContentBox",".series-details",".seasonsList",".episodes","#seasonEpisodesList",".seriesCover",".seriesDescription",".coverWrapper"].some(sel => document.querySelector(sel));
+
+  if (episodeFound || overviewFound || retries <= 0) {
     injectAniListBar(info, anime);
   } else {
     setTimeout(() => tryInjectBar(info, anime, retries - 1), 400);
   }
+}
+
+// ─────────────────────────────────────────────
+// Übersichtsseite: nur Leiste, kein Badge/Tracking
+// ─────────────────────────────────────────────
+function startOverviewMode(info) {
+  clearInterval(countdownInterval);
+  isTrackingCompleted = false;
+  isPaused = false;
+  currentAnimeInfo = info;
+  cachedAnimeData = null;
+
+  // Badge verstecken – auf Übersichtsseiten nicht nötig
+  const badge = document.getElementById("anilist-tracker-container");
+  if (badge) badge.style.display = "none";
+
+  fetchAndRenderAll(info);
 }
 
 // ─────────────────────────────────────────────
@@ -529,19 +589,19 @@ function submitBadgeRating(score) {
   hideRatingView();
   statusText.textContent = `⭐ Sende ${score}/10 an AniList...`;
   chrome.runtime.sendMessage(
-    { type: "RATE_ANIME", payload: { ...currentAnimeInfo, score } },
-    (response) => {
-      if (response?.success) {
-        statusText.textContent = `✅ Bewertung gespeichert!`;
-        statusText.style.color = "#a6e3a1";
-        const vr = document.getElementById("al-v-rate");
-        if (vr) vr.innerHTML = `${score}<span class="al-hint">✎</span>`;
-      } else {
-        statusText.textContent = `❌ Fehler beim Bewerten`;
-        statusText.style.color = "#f38ba8";
+      { type: "RATE_ANIME", payload: { ...currentAnimeInfo, score } },
+      (response) => {
+        if (response?.success) {
+          statusText.textContent = `✅ Bewertung gespeichert!`;
+          statusText.style.color = "#a6e3a1";
+          const vr = document.getElementById("al-v-rate");
+          if (vr) vr.innerHTML = `${score}<span class="al-hint">✎</span>`;
+        } else {
+          statusText.textContent = `❌ Fehler beim Bewerten`;
+          statusText.style.color = "#f38ba8";
+        }
+        setTimeout(() => { statusText.textContent = ""; statusText.style.color = "#9399b2"; }, 3000);
       }
-      setTimeout(() => { statusText.textContent = ""; statusText.style.color = "#9399b2"; }, 3000);
-    }
   );
 }
 
@@ -564,13 +624,13 @@ function updateProgress(secondsLeft) {
   const mins = Math.floor(secondsLeft / 60);
   const secs = secondsLeft % 60;
   document.getElementById("at-time").textContent =
-    `${String(mins).padStart(2,"0")}:${String(secs).padStart(2,"0")}`;
+      `${String(mins).padStart(2,"0")}:${String(secs).padStart(2,"0")}`;
   document.getElementById("at-progress").style.width =
-    `${((THRESHOLD_SEC - secondsLeft) / THRESHOLD_SEC) * 100}%`;
+      `${((THRESHOLD_SEC - secondsLeft) / THRESHOLD_SEC) * 100}%`;
 }
 
 // ─────────────────────────────────────────────
-// Tracking
+// Tracking (nur auf Episode-Seiten)
 // ─────────────────────────────────────────────
 function startTracking(info) {
   clearInterval(countdownInterval);
@@ -601,20 +661,20 @@ function startTracking(info) {
       updateBadgeUI(info, "📡 Speichere auf AniList...", "#f9e2af", true);
 
       chrome.runtime.sendMessage(
-        { type: "TRACK_EPISODE", payload: info },
-        (response) => {
-          if (response?.success) {
-            let msg = `✅ Episode ${info.episode} gespeichert!`;
-            if (response.isCompleted) { msg = "🏁 Finale erreicht! Bitte bewerten:"; showRatingView(); }
-            updateBadgeUI(info, msg, "#a6e3a1", true);
-            const epEl = document.getElementById("al-v-ep");
-            if (epEl && cachedAnimeData) {
-              epEl.innerHTML = `${info.episode}/${cachedAnimeData.episodes ?? "?"}<span class="al-hint">✎</span>`;
+          { type: "TRACK_EPISODE", payload: info },
+          (response) => {
+            if (response?.success) {
+              let msg = `✅ Episode ${info.episode} gespeichert!`;
+              if (response.isCompleted) { msg = "🏁 Finale erreicht! Bitte bewerten:"; showRatingView(); }
+              updateBadgeUI(info, msg, "#a6e3a1", true);
+              const epEl = document.getElementById("al-v-ep");
+              if (epEl && cachedAnimeData) {
+                epEl.innerHTML = `${info.episode}/${cachedAnimeData.episodes ?? "?"}<span class="al-hint">✎</span>`;
+              }
+            } else {
+              updateBadgeUI(info, `❌ ${response?.error || "Fehler"}`, "#f38ba8", true);
             }
-          } else {
-            updateBadgeUI(info, `❌ ${response?.error || "Fehler"}`, "#f38ba8", true);
           }
-        }
       );
     }
   }, 1000);
@@ -629,16 +689,27 @@ function init() {
   urlCheckInterval = setInterval(() => {
     if (window.location.href !== currentUrl) {
       currentUrl = window.location.href;
-      const info = parseAniWorldURL(currentUrl);
-      if (info) {
-        startTracking(info);
-      } else {
-        clearInterval(countdownInterval);
-        const badge = document.getElementById("anilist-tracker-container");
-        if (badge) badge.style.display = "none";
-        const bar = document.getElementById("al-bar");
-        if (bar) bar.remove();
+
+      // 1. Episodenseite hat Vorrang
+      const episodeInfo = parseAniWorldURL(currentUrl);
+      if (episodeInfo) {
+        startTracking(episodeInfo);
+        return;
       }
+
+      // 2. Übersichts- oder Staffelseite
+      const overviewInfo = parseAniWorldOverviewURL(currentUrl);
+      if (overviewInfo) {
+        startOverviewMode(overviewInfo);
+        return;
+      }
+
+      // 3. Andere Seite → alles ausblenden
+      clearInterval(countdownInterval);
+      const badge = document.getElementById("anilist-tracker-container");
+      if (badge) badge.style.display = "none";
+      const bar = document.getElementById("al-bar");
+      if (bar) bar.remove();
     }
   }, 1000);
 }

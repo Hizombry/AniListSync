@@ -4,7 +4,7 @@ const saveBtn    = document.getElementById("saveBtn");
 const statusDiv  = document.getElementById("status");
 const toggleBtn  = document.getElementById("toggleBtn");
 
-const CLIENT_ID = "38606";
+const CLIENT_ID = "38398";
 
 document.getElementById("loginBtn").addEventListener("click", () => {
   const url = `https://anilist.co/api/v2/oauth/authorize?client_id=${CLIENT_ID}&response_type=token`;
