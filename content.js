@@ -1,6 +1,6 @@
 // content.js – läuft auf aniworld.to
 
-const THRESHOLD_SEC = 150;
+const THRESHOLD_SEC = 150; // 2:30 min Timer
 let currentUrl = "";
 let countdownInterval = null;
 let urlCheckInterval = null;
@@ -593,12 +593,12 @@ function submitBadgeRating(score) {
       (response) => {
         if (response?.success) {
           statusText.textContent = `✅ Bewertung gespeichert!`;
-          statusText.style.color = "#a6e3a1";
+          statusText.style.color = "#3fb950";
           const vr = document.getElementById("al-v-rate");
           if (vr) vr.innerHTML = `${score}<span class="al-hint">✎</span>`;
         } else {
           statusText.textContent = `❌ Fehler beim Bewerten`;
-          statusText.style.color = "#f38ba8";
+          statusText.style.color = "#f85149";
         }
         setTimeout(() => { statusText.textContent = ""; statusText.style.color = "#9399b2"; }, 3000);
       }
@@ -666,13 +666,13 @@ function startTracking(info) {
             if (response?.success) {
               let msg = `✅ Episode ${info.episode} gespeichert!`;
               if (response.isCompleted) { msg = "🏁 Finale erreicht! Bitte bewerten:"; showRatingView(); }
-              updateBadgeUI(info, msg, "#a6e3a1", true);
+              updateBadgeUI(info, msg, "#3fb950", true);
               const epEl = document.getElementById("al-v-ep");
               if (epEl && cachedAnimeData) {
                 epEl.innerHTML = `${info.episode}/${cachedAnimeData.episodes ?? "?"}<span class="al-hint">✎</span>`;
               }
             } else {
-              updateBadgeUI(info, `❌ ${response?.error || "Fehler"}`, "#f38ba8", true);
+              updateBadgeUI(info, `❌ ${response?.error || "Fehler"}`, "#f85149", true);
             }
           }
       );
