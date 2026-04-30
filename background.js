@@ -21,12 +21,36 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-async function handleGetAnimeInfo({ title, season }) {
+async function handleGetAnimeInfo({ title, season, episode }) {
   const { anilistToken } = await chrome.storage.sync.get("anilistToken");
-  const searchTitle = season === 1 ? title : `${title} Season ${season}`;
+
+  let queryVariables = {};
+  let queryArgs = "";
+  let mediaArgs = "";
+  let adjustedEpisode = episode; // NEU: Speichert die korrigierte Episode
+
+  // 1. Wenn eine Episode vorliegt, versuche die Cour-Logik
+  if (episode !== undefined && episode !== null) {
+    const resolved = await searchAnimeWithCourResolution(title, season, episode, anilistToken);
+    if (resolved && resolved.anime) {
+      queryVariables = { id: resolved.anime.id };
+      queryArgs = "$id: Int";
+      mediaArgs = "id: $id";
+      adjustedEpisode = resolved.episode; // NEU: Cour-Episode merken
+    }
+  }
+
+  // 2. Fallback: Keine Episode oder Suche fehlgeschlagen
+  if (!queryVariables.id) {
+    const searchTitle = season === 1 ? title : `${title} Season ${season}`;
+    queryVariables = { search: searchTitle };
+    queryArgs = "$search: String";
+    mediaArgs = "search: $search";
+  }
+
   const query = `
-    query ($search: String) {
-      Media(search: $search, type: ANIME) {
+    query (${queryArgs}) {
+      Media(${mediaArgs}, type: ANIME) {
         id title { romaji english native }
         coverImage { large medium color }
         averageScore genres episodes status format season seasonYear
@@ -37,15 +61,18 @@ async function handleGetAnimeInfo({ title, season }) {
       }
     }
   `;
+
   const headers = { "Content-Type": "application/json" };
   if (anilistToken) headers["Authorization"] = `Bearer ${anilistToken}`;
+
   try {
     const r = await fetch("https://graphql.anilist.co", {
       method: "POST", headers,
-      body: JSON.stringify({ query, variables: { search: searchTitle } })
+      body: JSON.stringify({ query, variables: queryVariables })
     });
     const data = await r.json();
-    return { success: true, anime: data?.data?.Media };
+    // NEU: adjustedEpisode wird ans UI geschickt
+    return { success: true, anime: data?.data?.Media, adjustedEpisode };
   } catch (e) {
     return { success: false, error: e.message };
   }
@@ -111,12 +138,28 @@ async function getUserScoreFormat(token) {
   } catch { return "POINT_10"; }
 }
 
-async function handleRateAnime({ title, season, score }) {
+async function handleRateAnime({ title, season, episode, score }) {
   const { anilistToken } = await chrome.storage.sync.get("anilistToken");
   if (!anilistToken) return { success: false, error: "Token fehlt" };
-  const searchTitle = season === 1 ? title : `${title} Season ${season}`;
-  const anime = await searchAnime(searchTitle, anilistToken);
-  if (!anime) return { success: false, error: "Anime nicht gefunden" };
+
+  let animeId = null;
+
+  // Versuche zuerst, den genauen Cour anhand der Episode zu finden
+  if (episode !== undefined && episode !== null) {
+    const resolved = await searchAnimeWithCourResolution(title, season, episode, anilistToken);
+    if (resolved && resolved.anime) {
+      animeId = resolved.anime.id;
+    }
+  }
+
+  // Fallback, falls das nicht klappt
+  if (!animeId) {
+    const searchTitle = season === 1 ? title : `${title} Season ${season}`;
+    const anime = await searchAnime(searchTitle, anilistToken);
+    if (!anime) return { success: false, error: "Anime nicht gefunden" };
+    animeId = anime.id;
+  }
+
   const scoreFormat = await getUserScoreFormat(anilistToken);
   const finalScore = formatScore(score, scoreFormat);
   const query = `
@@ -128,10 +171,12 @@ async function handleRateAnime({ title, season, score }) {
     await fetch("https://graphql.anilist.co", {
       method: "POST",
       headers: { "Authorization": `Bearer ${anilistToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ query, variables: { mediaId: anime.id, score: finalScore } })
+      body: JSON.stringify({ query, variables: { mediaId: animeId, score: finalScore } })
     });
     return { success: true };
-  } catch (e) { return { success: false, error: e.message }; }
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 }
 
 async function searchAnimeWithCourResolution(title, season, episode, token) {

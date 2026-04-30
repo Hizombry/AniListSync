@@ -1,6 +1,6 @@
 // content.js – läuft auf aniworld.to
 
-const THRESHOLD_SEC = 150; // 2:30 min Timer
+const THRESHOLD_SEC = 120; // 2 min Timer
 let currentUrl = "";
 let countdownInterval = null;
 let urlCheckInterval = null;
@@ -515,9 +515,18 @@ function fetchAndRenderAll(info) {
     container.style.display = "flex";
   }
   chrome.runtime.sendMessage(
-      { type: "GET_ANIME_INFO", payload: { title: info.title, season: info.season } },
+      // WICHTIG: episode muss mitgeschickt werden!
+      { type: "GET_ANIME_INFO", payload: { title: info.title, season: info.season, episode: info.episode } },
       (response) => {
-        cachedAnimeData = response?.success ? response.anime : null;
+        if (response?.success) {
+          cachedAnimeData = response.anime;
+          // NEU: Wir merken uns die korrekte Cour-Episode für die UI
+          if (cachedAnimeData) {
+            cachedAnimeData.adjustedEpisode = response.adjustedEpisode !== undefined ? response.adjustedEpisode : info.episode;
+          }
+        } else {
+          cachedAnimeData = null;
+        }
         renderBadgeAnimeInfo(cachedAnimeData);
         tryInjectBar(info, cachedAnimeData, 20);
       }
@@ -664,12 +673,20 @@ function startTracking(info) {
           { type: "TRACK_EPISODE", payload: info },
           (response) => {
             if (response?.success) {
-              let msg = `✅ Episode ${info.episode} gespeichert!`;
+              // NEU: Verwende die angepasste Episode für die UI (falls vorhanden)
+              let displayEp = info.episode;
+              if (cachedAnimeData && cachedAnimeData.adjustedEpisode !== undefined) {
+                displayEp = cachedAnimeData.adjustedEpisode;
+              }
+
+              let msg = `✅ Episode ${displayEp} gespeichert!`;
               if (response.isCompleted) { msg = "🏁 Finale erreicht! Bitte bewerten:"; showRatingView(); }
               updateBadgeUI(info, msg, "#3fb950", true);
+
+              // Leisten-Text (z.B. 2/12 statt 14/12) aktualisieren
               const epEl = document.getElementById("al-v-ep");
               if (epEl && cachedAnimeData) {
-                epEl.innerHTML = `${info.episode}/${cachedAnimeData.episodes ?? "?"}<span class="al-hint">✎</span>`;
+                epEl.innerHTML = `${displayEp}/${cachedAnimeData.episodes ?? "?"}<span class="al-hint">✎</span>`;
               }
             } else {
               updateBadgeUI(info, `❌ ${response?.error || "Fehler"}`, "#f85149", true);
