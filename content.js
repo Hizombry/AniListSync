@@ -13,6 +13,15 @@ let cachedAnimeData = null;
 // ─────────────────────────────────────────────
 // URL parsen
 // ─────────────────────────────────────────────
+function escapeHtml(str) {
+  return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+}
+
 function parseAniWorldURL(url) {
   const match = url.match(
       /aniworld\.to\/anime\/stream\/([^/]+)\/staffel-(\d+)\/episode-(\d+)/
@@ -177,7 +186,7 @@ function renderBadgeAnimeInfo(anime) {
   const genres = (anime.genres || []).slice(0, 3).map(g =>
       `<span style="background:#313244;border-radius:4px;padding:2px 6px;font-size:10px;color:#89b4fa;">${g}</span>`
   ).join("");
-  let desc = (anime.description || "").replace(/<[^>]*>/g, "").trim();
+  let desc = escapeHtml(anime.description || "").trim();
   if (desc.length > 120) desc = desc.slice(0, 117) + "…";
 
   container.innerHTML = `
