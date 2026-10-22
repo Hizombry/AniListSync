@@ -1,25 +1,31 @@
-#  AniList-AniWorld Integration
-------------------------------------------------------------------------
-## ⚙ Funktionen
+# AniList-AniWorld Integration
 
-### 1.  QuickLink auf AniWorld
+## ⚙ Funktionen (umgesetzt)
+- Automatisches Tracking nach 2:30 min auf einer Episoden- oder Filmseite (pausierbar)
+- AniList-Leiste auf Anime-, Staffel-, Episoden- und Filmseiten:
+  Community-Score, Status (inkl. „Zur Liste hinzufügen"), Fortschritt, eigene Wertung
+- Wertung wird ins AniList-Scoreformat des Nutzers umgerechnet (3/5/10/100 Punkte)
 
-- Auf der **AniWorld Homepage** können einzelne Animes:
-  - direkt zu **AniList** hinzugefügt werden
-- Auto-Erkennung ob Anime schon in Liste ist
-------------------------------------------------------------------------
-##  Mögliche Erweiterungen
-1. 
-   - Auto-Erkennung ob Anime schon in Liste ist
-     - Status setzen (Watching, Completed, etc.)
-   - Fortschritt (Episode) automatisch aktualisieren
-   - Falls die URL **nicht direkt einem AniList-Eintrag entspricht**:
-     - Titel von der Seite auslesen\
-     - Mit diesem Titel auf AniList suchen\
-     - Das **beste passende Ergebnis** auswählen
-------------------------------------------------------------------------
-2. - automatisch deutsch sub auswählen
-------------------------------------------------------------------------
-3. **Edge Case** 
-   - Wenn ein Anime auf AniWorld mehrere Staffeln hat, aber auf AniList anders organisiert ist:
-   - Episodentitel analysieren - Daraus den passenden Eintrag ableiten
+### Zuordnung AniWorld → AniList
+AniWorld und AniList teilen Serien oft unterschiedlich auf. Deshalb wird fortlaufend gezählt:
+`Gesamtnummer = Episoden aller früheren AniWorld-Staffeln + aktuelle Episode`
+und an der AniList-Sequel-Kette „abgewickelt".
+- **Gintama-Fall:** Mehrere AniWorld-Staffeln liegen in *einem* AniList-Eintrag → bleibt im selben Eintrag.
+- **Cour-Splits:** Läuft die Nummer über das Ende eines Eintrags hinaus, geht es im nächsten TV-Eintrag weiter.
+- **Attack-on-Titan-Fall:** Gibt es keine TV-Fortsetzung mehr, werden OVAs/Specials als Fortsetzung genutzt
+  (die letzten Folgen, die AniWorld als normale Episoden zeigt).
+- Weicht eine AniWorld-Staffelgrenze nur minimal (≤ 3 Folgen, z. B. Recap-Folge) von einer AniList-Grenze ab,
+  rastet die Zuordnung auf die Grenze ein.
+- Die Episodenzahlen der AniWorld-Staffeln werden von der Seite gelesen und 3 Tage zwischengespeichert.
+
+### Filme-Tab (`/filme/film-N`)
+- Die Filmliste von AniWorld wird gelesen; der Filmtitel wird mit MOVIE/OVA/ONA/SPECIAL des AniList-Franchise abgeglichen.
+- Ist der Titel nicht eindeutig, wird nach Erscheinungsdatum zugeordnet – aber nur, wenn die Anzahl der
+  AniWorld-Filme exakt zur Anzahl der AniList-Kandidaten passt. Sonst wird **nicht geraten**,
+  die Leiste meldet „Film konnte auf AniList nicht eindeutig zugeordnet werden".
+- Ein Film gilt nach dem Tracking als komplett (Status COMPLETED, Bewertungsabfrage).
+
+## 🔜 Mögliche Erweiterungen
+1. QuickLink auf der **AniWorld-Startseite**
+2. Automatisch „Deutsch Sub" auswählen
+3. Timer nur zählen lassen, wenn der Tab sichtbar ist
