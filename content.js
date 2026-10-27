@@ -17,13 +17,15 @@ let lastInfoError = "";
 // ─────────────────────────────────────────────
 // URL parsen
 // ─────────────────────────────────────────────
-function escapeHtml(str) {
-  return String(str)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
+function setTextWithHint(element, value, hint = "") {
+  if (!element) return;
+  element.textContent = String(value ?? "");
+  if (hint) {
+    const hintElement = document.createElement("span");
+    hintElement.className = "al-hint";
+    hintElement.textContent = hint;
+    element.appendChild(hintElement);
+  }
 }
 
 function slugToTitle(slug) {
@@ -307,11 +309,10 @@ function injectAniListBar(info, anime) {
   const avgScore = anime.averageScore ?? "–";
   const anilistUrl = `https://anilist.co/anime/${anime.id}`;
 
-  const CELL = `padding:10px 16px; border-right:1px solid #30363d; cursor:pointer;
-    user-select:none; transition:background 0.15s; position:relative; overflow:visible;`;
-
   bar.innerHTML = `
     <style>
+      #al-bar .al-cell { padding:10px 16px; border-right:1px solid #30363d; cursor:pointer;
+        user-select:none; transition:background 0.15s; position:relative; overflow:visible; }
       #al-bar .al-cell:last-child { border-right: none !important; }
       #al-bar .al-cell:hover { background: #1c2333 !important; }
       #al-bar .al-lbl { display:block; font-size:10px; color:#8b949e; text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px; }
@@ -354,50 +355,64 @@ function injectAniListBar(info, anime) {
       #al-bar .al-star { font-size:22px; color:#30363d; cursor:pointer; transition:color 0.12s; line-height:1; }
     </style>
 
-    <!-- Zelle 1: Community-Score → öffnet AniList -->
-    <div class="al-cell" id="al-c-score" style="${CELL}" title="Auf AniList ansehen ↗">
-        <span class="al-lbl">AniList Bewertung</span>
-        <span class="al-val" style="color: ${avgScore > 75 ? '#2ecc71' : (avgScore >= 50 ? '#f0b429' : '#e74c3c')};">${avgScore}<span class="al-hint">%</span></span>
+    <div class="al-cell" id="al-c-score" title="Auf AniList ansehen ↗">
+      <span class="al-lbl">AniList Bewertung</span>
+      <span class="al-val" id="al-v-community"></span>
     </div>
 
-    <!-- Zelle 2: Listen-Status (Dropdown) -->
-    <div class="al-cell" id="al-c-status" style="${CELL}" title="Status ändern">
+    <div class="al-cell" id="al-c-status" title="Status ändern">
       <span class="al-lbl">Status</span>
-      <span class="al-val" id="al-v-status">${inList ? statusLabel : "+ Zur Liste"}<span class="al-hint">▾</span></span>
-      <div class="al-drop" id="al-d-status">
-        ${Object.entries(STATUS_MAP).map(([k,v]) =>
-      `<div class="al-ditem${entry?.status === k ? " active" : ""}" data-s="${k}">${v}</div>`
-  ).join("")}
-      </div>
+      <span class="al-val" id="al-v-status"></span>
+      <div class="al-drop" id="al-d-status"></div>
     </div>
 
-    <!-- Zelle 3: Episode-Fortschritt (Popup) -->
-    <div class="al-cell" id="al-c-ep" style="${CELL}" title="Episoden-Fortschritt anpassen">
+    <div class="al-cell" id="al-c-ep" title="Episoden-Fortschritt anpassen">
       <span class="al-lbl">Episode</span>
-      <span class="al-val" id="al-v-ep">${progressLabel}<span class="al-hint">${inList ? "✎" : ""}</span></span>
+      <span class="al-val" id="al-v-ep"></span>
       <div class="al-pop" id="al-p-ep">
-        <span class="al-plbl">Gesehene Episoden (von ${anime.episodes ?? "?"})</span>
-        <input class="al-inp" id="al-i-ep" type="number" min="0" max="${anime.episodes ?? 9999}"
-          value="${entry?.progress ?? 0}" />
+        <span class="al-plbl" id="al-l-ep-total"></span>
+        <input class="al-inp" id="al-i-ep" type="number" min="0" max="9999" value="0" />
         <button class="al-sbtn" id="al-s-ep">Speichern</button>
         <div class="al-fb" id="al-f-ep"></div>
       </div>
     </div>
 
-    <!-- Zelle 4: Eigene Wertung (Popup) -->
-    <div class="al-cell" id="al-c-rate" style="${CELL}" title="Eigene Bewertung abgeben">
+    <div class="al-cell" id="al-c-rate" title="Eigene Bewertung abgeben">
       <span class="al-lbl">Eigene Wertung</span>
-      <span class="al-val" id="al-v-rate" style="color:#a6e3a1;">${scoreLabel}<span class="al-hint">${inList ? "✎" : ""}</span></span>
+      <span class="al-val" id="al-v-rate" style="color:#a6e3a1;"></span>
       <div class="al-pop" id="al-p-rate" style="min-width:230px;">
         <span class="al-plbl">Bewertung abgeben (1–10)</span>
         <div class="al-srow" id="al-srow"></div>
-        <input class="al-inp" id="al-i-rate" type="number" min="1" max="10"
-          value="${score10 ? Math.round(score10) : ""}" placeholder="1 – 10" />
+        <input class="al-inp" id="al-i-rate" type="number" min="1" max="10" value="" placeholder="1 – 10" />
         <button class="al-sbtn" id="al-s-rate">Speichern</button>
         <div class="al-fb" id="al-f-rate"></div>
       </div>
     </div>
   `;
+
+  // Werte aus der Seite/API werden als Text bzw. DOM-Attribute gesetzt, nicht als HTML interpretiert.
+  const communityValue = bar.querySelector("#al-v-community");
+  communityValue.textContent = String(avgScore);
+  const numericAverage = Number(avgScore);
+  communityValue.style.color = numericAverage > 75 ? "#2ecc71" : (numericAverage >= 50 ? "#f0b429" : "#e74c3c");
+  setTextWithHint(bar.querySelector("#al-v-status"), inList ? statusLabel : "+ Zur Liste", "▾");
+  let displayedStatus = inList ? statusLabel : "+ Zur Liste";
+  setTextWithHint(bar.querySelector("#al-v-ep"), progressLabel, inList ? "✎" : "");
+  setTextWithHint(bar.querySelector("#al-v-rate"), scoreLabel, inList ? "✎" : "");
+  bar.querySelector("#al-l-ep-total").textContent = `Gesehene Episoden (von ${anime.episodes ?? "?"})`;
+  const episodeInput = bar.querySelector("#al-i-ep");
+  episodeInput.max = String(Number(anime.episodes) || 9999);
+  episodeInput.value = String(Number(entry?.progress) || 0);
+  bar.querySelector("#al-i-rate").value = score10 ? String(Math.round(score10)) : "";
+
+  const statusDropdown = bar.querySelector("#al-d-status");
+  Object.entries(STATUS_MAP).forEach(([key, label]) => {
+    const item = document.createElement("div");
+    item.className = "al-ditem" + (entry?.status === key ? " active" : "");
+    item.dataset.s = key;
+    item.textContent = label;
+    statusDropdown.appendChild(item);
+  });
 
   insertBarIntoPage(bar);
 
@@ -423,13 +438,13 @@ function injectAniListBar(info, anime) {
           (res) => {
             closeAllBarPopups();
             if (res?.success) {
-              document.getElementById("al-v-status").innerHTML =
-                  `${STATUS_MAP[newStatus]}<span class="al-hint">▾</span>`;
+              displayedStatus = STATUS_MAP[newStatus];
+              setTextWithHint(document.getElementById("al-v-status"), displayedStatus, "▾");
               if (!inList) {
                 inList = true;
                 const p = Number(res.entry?.progress) || 0;
-                document.getElementById("al-v-ep").innerHTML = `${p}/${Number(anime.episodes) || "?"}<span class="al-hint">✎</span>`;
-                document.getElementById("al-v-rate").innerHTML = `–<span class="al-hint">✎</span>`;
+                setTextWithHint(document.getElementById("al-v-ep"), `${p}/${Number(anime.episodes) || "?"}`, "✎");
+                setTextWithHint(document.getElementById("al-v-rate"), "–", "✎");
               }
               ddStatus.querySelectorAll(".al-ditem").forEach(i => {
                 i.className = "al-ditem" + (i.dataset.s === newStatus ? " active" : "");
@@ -438,9 +453,8 @@ function injectAniListBar(info, anime) {
             } else {
               ddStatus.querySelectorAll(".al-ditem").forEach(i => { i.textContent = STATUS_MAP[i.dataset.s]; });
               const vs = document.getElementById("al-v-status");
-              const prev = vs.innerHTML;
               vs.textContent = "❌ " + (res?.error || "Fehler");
-              setTimeout(() => { vs.innerHTML = prev; }, 2500);
+              setTimeout(() => setTextWithHint(vs, displayedStatus, "▾"), 2500);
             }
           }
       );
@@ -466,8 +480,7 @@ function injectAniListBar(info, anime) {
         { type: "SAVE_LIST_ENTRY", payload: { mediaId: animeId, progress: val } },
         (res) => {
           if (res?.success) {
-            document.getElementById("al-v-ep").innerHTML =
-                `${val}/${anime.episodes ?? "?"}<span class="al-hint">✎</span>`;
+            setTextWithHint(document.getElementById("al-v-ep"), `${val}/${anime.episodes ?? "?"}`, "✎");
             fb.style.color = "#3fb950"; fb.textContent = "✅ Gespeichert!";
             setTimeout(() => closeAllBarPopups(), 800);
           } else {
@@ -514,8 +527,7 @@ function injectAniListBar(info, anime) {
         { type: "RATE_ANIME", payload: { mediaId: animeId, score: val } },
         (res) => {
           if (res?.success) {
-            document.getElementById("al-v-rate").innerHTML =
-                `${val}<span class="al-hint">✎</span>`;
+            setTextWithHint(document.getElementById("al-v-rate"), val, "✎");
             fb.style.color = "#3fb950"; fb.textContent = "✅ Gespeichert!";
             setTimeout(() => closeAllBarPopups(), 800);
           } else {
@@ -791,7 +803,7 @@ function submitBadgeRating(score) {
           statusText.textContent = `✅ Bewertung gespeichert!`;
           statusText.style.color = "#3fb950";
           const vr = document.getElementById("al-v-rate");
-          if (vr) vr.innerHTML = `${score}<span class="al-hint">✎</span>`;
+          if (vr) setTextWithHint(vr, score, "✎");
         } else {
           statusText.textContent = `❌ Fehler beim Bewerten`;
           statusText.style.color = "#f85149";
@@ -869,7 +881,7 @@ function startTracking(info) {
               updateBadgeUI(info, msg, "#3fb950", true);
               const epEl = document.getElementById("al-v-ep");
               if (epEl && cachedAnimeData) {
-                epEl.innerHTML = `${Number(response.progress ?? info.episode)}/${Number(cachedAnimeData.episodes) || "?"}<span class="al-hint">✎</span>`;
+                setTextWithHint(epEl, `${Number(response.progress ?? info.episode)}/${Number(cachedAnimeData.episodes) || "?"}`, "✎");
               }
             } else {
               updateBadgeUI(info, `❌ ${response?.error || "Fehler"}`, "#f85149", true);

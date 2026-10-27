@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "AniWorld → AniList Tracker",
-  "version": "1.5.0",
+  "name": "AniWorld \u2192 AniList Tracker",
+  "version": "1.5.1",
   "description": "Trackt automatisch gesehene Episoden von AniWorld auf AniList",
   "icons": {
     "16": "icons/icon16.png",
@@ -9,19 +9,26 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "permissions": ["storage"],
+  "permissions": [
+    "storage"
+  ],
   "host_permissions": [
     "https://aniworld.to/*",
     "https://graphql.anilist.co/*"
   ],
   "background": {
-    "service_worker": "background.js",
-    "scripts": ["background.js"]
+    "scripts": [
+      "background.js"
+    ]
   },
   "content_scripts": [
     {
-      "matches": ["https://aniworld.to/*"],
-      "js": ["content.js"]
+      "matches": [
+        "https://aniworld.to/*"
+      ],
+      "js": [
+        "content.js"
+      ]
     }
   ],
   "action": {
@@ -36,9 +43,12 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "AniListSync@hizombry.com",
-      "strict_min_version": "140.0",
+      "strict_min_version": "142.0",
       "data_collection_permissions": {
-        "required": ["websiteContent", "websiteActivity"]
+        "required": [
+          "websiteContent",
+          "websiteActivity"
+        ]
       }
     }
   }

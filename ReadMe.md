@@ -11,5 +11,15 @@ automatisch getrackt (Episoden **und** Filme), und Status, Fortschritt und Wertu
 3. AniWorld ganz normal weiter nutzen.
 
 ### Installation
-- **Chrome / Edge:** ZIP entpacken → `chrome://extensions` → Entwicklermodus → „Entpackte Erweiterung laden".
-- **Firefox (ab 140):** ZIP entpacken → `about:debugging` → „Temporäres Add-on laden" → `manifest.json` wählen.
+Diese vorbereitete ZIP-Datei ist **für Firefox** gedacht (ab Firefox 142). Nach der Signierung installierst du die von Mozilla bereitgestellte `.xpi` über `about:addons` → Zahnrad-Menü → „Add-on aus Datei installieren“.
+
+Für Chrome/Edge ist weiterhin ein Manifest mit `background.service_worker` erforderlich; diese Firefox-Ausgabe ist dafür nicht vorgesehen.
+
+### Firefox-Signierung (Version 1.5.1)
+Dieses Paket ist für Firefox vorbereitet. Für Firefox Release/Beta muss es über addons.mozilla.org signiert werden.
+1. Öffne https://addons.mozilla.org/developers/ und melde dich an.
+2. Wähle „Neues Add-on“ und anschließend die Option zur Verteilung außerhalb von AMO („Unlisted“ / selbst gehostet), falls du es nur selbst verwenden möchtest.
+3. Lade `ALS-Firefox-AMO-upload.zip` hoch und folge der Validierung. Mozilla stellt nach erfolgreicher Signierung eine `.xpi`-Datei bereit.
+4. Da die Erweiterung Anfragen an AniList sendet, veröffentliche `DATENSCHUTZ.md` unter einer öffentlichen URL und trage diese bei AMO als Datenschutzerklärung ein.
+
+Die Signierung wurde nicht lokal durchgeführt; sie benötigt die Übermittlung über ein Mozilla-Konto.
