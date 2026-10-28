@@ -25,6 +25,12 @@ und an der AniList-Sequel-Kette „abgewickelt".
   die Leiste meldet „Film konnte auf AniList nicht eindeutig zugeordnet werden".
 - Ein Film gilt nach dem Tracking als komplett (Status COMPLETED, Bewertungsabfrage).
 
+### QuickLink AniList → AniWorld (`anilist.co/anime/<id>`)
+- Auf jeder AniList-Anime-Seite erscheint ein Button „▶ AniWorld · Staffel N" (bzw. „Filme" bei MOVIE/OVA/Special).
+- Ablauf: AniList-Prequel-Kette bis zur Wurzel → Titelsuche über `POST /ajax/search` auf AniWorld → Treffer per Titelähnlichkeit (≥ 0.6) →
+  Staffel über die Summe der Vorgänger-Episoden gegen die AniWorld-Staffelgrößen (gleiche Toleranz wie beim Tracking, ≤ 3 Folgen).
+- Kein eindeutiger Treffer → Button „AniWorld suchen" (öffnet die AniWorld-Suche). Ergebnisse werden 3 Tage zwischengespeichert.
+
 ## 🔜 Mögliche Erweiterungen
 1. QuickLink auf der **AniWorld-Startseite**
 2. Automatisch „Deutsch Sub" auswählen

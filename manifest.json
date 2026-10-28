@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "AniWorld \u2192 AniList Tracker",
-  "version": "1.5.1",
-  "description": "Trackt automatisch gesehene Episoden von AniWorld auf AniList",
+  "name": "AniWorld → AniList Tracker",
+  "version": "1.6.0",
+  "description": "Trackt automatisch gesehene Episoden von AniWorld auf AniList und verlinkt AniList-Seiten zu AniWorld",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -14,6 +14,7 @@
   ],
   "host_permissions": [
     "https://aniworld.to/*",
+    "https://anilist.co/*",
     "https://graphql.anilist.co/*"
   ],
   "background": {
@@ -29,6 +30,15 @@
       "js": [
         "content.js"
       ]
+    },
+    {
+      "matches": [
+        "https://anilist.co/*"
+      ],
+      "js": [
+        "anilist_content.js"
+      ],
+      "run_at": "document_idle"
     }
   ],
   "action": {

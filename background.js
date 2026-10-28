@@ -484,11 +484,178 @@ async function handleTrackEpisode(payload) {
   return { success: true, isCompleted, progress: saved?.progress ?? ep };
 }
 
+// ─────────────────────────────────────────────
+// AniList → AniWorld (QuickLink auf anilist.co)
+// ─────────────────────────────────────────────
+const AW_ORIGIN = "https://aniworld.to";
+const AW_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+
+async function awCacheGet(key) {
+  try {
+    const o = await chrome.storage.local.get(key);
+    const v = o[key];
+    if (v && Date.now() - v.ts < AW_TTL_MS) return v.data;
+  } catch { /* ignorieren */ }
+  return null;
+}
+
+async function awCacheSet(key, data) {
+  try { await chrome.storage.local.set({ [key]: { ts: Date.now(), data } }); } catch { /* ignorieren */ }
+}
+
+// Vorgänger-Eintrag (neuester früherer Eintrag der gewünschten Formate)
+function pickPrequel(media, formats = TV_FORMATS) {
+  const edges = (media.relations?.edges || [])
+    .filter(e => e.relationType === "PREQUEL" && e.node && formats.includes(e.node.format))
+    .sort((x, y) => dateKey(y.node) - dateKey(x.node) || y.node.id - x.node.id);
+  return edges[0] || null;
+}
+
+// Wurzel der Reihe + Summe der Episoden aller TV-Vorgänger
+async function findRootAndPrior(media) {
+  let cur = media;
+  const isSeries = TV_FORMATS.includes(media.format);
+
+  // Film/OVA/Special: erst zum Eltern-Eintrag bzw. irgendeinem Vorgänger springen
+  if (!isSeries) {
+    const e = (media.relations?.edges || []).find(x => x.relationType === "PARENT" && x.node)
+           || (media.relations?.edges || []).find(x => x.relationType === "PREQUEL" && x.node);
+    if (e) cur = (await getFull(e.node.id, "")) || media;
+  }
+
+  let prior = 0;
+  for (let i = 0; i < MAX_CHAIN; i++) {
+    const e = pickPrequel(cur);
+    if (!e) break;
+    const f = await getFull(e.node.id, "");
+    if (!f) break;
+    prior += f.episodes || 0;
+    cur = f;
+  }
+  return { root: cur, prior: isSeries ? prior : null, isSeries };
+}
+
+// AniWorld-Suche (POST /ajax/search, Antwort: JSON-Liste mit link + title)
+async function awSearch(keyword) {
+  const r = await fetch(`${AW_ORIGIN}/ajax/search`, {
+    method: "POST",
+    headers: {
+      "X-Requested-With": "XMLHttpRequest",
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+      Accept: "application/json, text/javascript, */*",
+    },
+    body: new URLSearchParams({ keyword }).toString(),
+  });
+  if (!r.ok) throw new Error(`AniWorld HTTP ${r.status}`);
+
+  let list;
+  try { list = JSON.parse(await r.text()); } catch { return []; }
+  if (!Array.isArray(list)) return [];
+
+  const seen = new Set();
+  const out = [];
+  for (const it of list) {
+    const m = String(it?.link || "").match(/anime\/stream\/([^/?#]+)/);
+    if (!m || /episode-/.test(String(it.link)) || seen.has(m[1])) continue;
+    seen.add(m[1]);
+    const title = String(it.title || it.name || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    out.push({ slug: m[1], title });
+  }
+  return out;
+}
+
+function awMatchScore(result, names) {
+  const rt = tokens(result.title || result.slug.replace(/-/g, " "));
+  const st = tokens(result.slug.replace(/-/g, " "));
+  let best = 0;
+  for (const n of names) {
+    const nt = tokens(n);
+    best = Math.max(best, dice(rt, nt), dice(st, nt));
+  }
+  return best;
+}
+
+async function awFindSeries(root) {
+  const names = [root.title?.romaji, root.title?.english, ...(root.synonyms || [])].filter(Boolean);
+  const keywords = [...new Set([root.title?.english, root.title?.romaji].filter(Boolean))];
+
+  for (const kw of keywords.slice(0, 2)) {
+    const results = await awSearch(kw);
+    const ranked = results
+      .map(r => ({ r, s: awMatchScore(r, names) }))
+      .sort((a, b) => b.s - a.s);
+    if (ranked.length && ranked[0].s >= 0.6) return ranked[0].r;
+  }
+  return null;
+}
+
+// Höchste Episodennummer einer AniWorld-Staffel (null = Staffel existiert nicht)
+async function awSeasonCount(slug, n) {
+  const key = `aw:count:${slug}:${n}`;           // gleicher Schlüssel wie content.js
+  const cached = await awCacheGet(key);
+  if (cached) return cached;
+
+  const r = await fetch(`${AW_ORIGIN}/anime/stream/${slug}/staffel-${n}`);
+  if (!r.ok) return null;
+  const html = await r.text();
+  const re = new RegExp(`/anime/stream/${slug.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/staffel-${n}/episode-(\\d+)`, "g");
+  let max = 0;
+  for (const m of html.matchAll(re)) max = Math.max(max, parseInt(m[1], 10));
+  if (!max) return null;
+
+  await awCacheSet(key, max);
+  return max;
+}
+
+// AniList-Position (Episoden davor) → AniWorld-Staffel
+async function awResolveSeason(slug, prior) {
+  let cum = 0, pick = 1;
+  for (let n = 1; n <= MAX_CHAIN + 5; n++) {
+    const c = await awSeasonCount(slug, n);
+    if (!c) break;
+    const tol = Math.min(3, Math.max(1, Math.floor(c / 4)));   // wie in resolveEpisode
+    if (cum <= prior + tol) pick = n; else break;
+    cum += c;
+  }
+  return pick;
+}
+
+async function handleFindAniWorld({ mediaId }) {
+  if (!mediaId) return { success: false, error: "Anime-ID fehlt" };
+
+  const key = `al2aw:${mediaId}`;
+  const cached = await awCacheGet(key);
+  if (cached) return { success: true, found: true, ...cached };
+
+  const media = await getFull(mediaId, "");
+  if (!media) return { success: true, found: false };
+
+  const { root, prior, isSeries } = await findRootAndPrior(media);
+  const series = await awFindSeries(root);
+  if (!series) {
+    const q = media.title?.english || media.title?.romaji || "";
+    return { success: true, found: false, searchUrl: `${AW_ORIGIN}/search?q=${encodeURIComponent(q)}` };
+  }
+
+  const base = `${AW_ORIGIN}/anime/stream/${series.slug}`;
+  let data;
+  if (isSeries) {
+    const season = await awResolveSeason(series.slug, prior || 0);
+    data = { url: `${base}/staffel-${season}`, slug: series.slug, season, kind: "season" };
+  } else {
+    data = { url: `${base}/filme`, slug: series.slug, season: null, kind: "film" };
+  }
+
+  await awCacheSet(key, data);
+  return { success: true, found: true, ...data };
+}
+
 const HANDLERS = {
   TRACK_EPISODE: handleTrackEpisode,
   RATE_ANIME: handleRateAnime,
   GET_ANIME_INFO: handleGetAnimeInfo,
   SAVE_LIST_ENTRY: handleSaveListEntry,
+  FIND_ANIWORLD: handleFindAniWorld,
 };
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

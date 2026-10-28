@@ -3,6 +3,8 @@
 Direkte Integration von **AniList** in die **AniWorld Webseite**: Gesehene Episoden werden
 automatisch getrackt (Episoden **und** Filme), und Status, Fortschritt und Wertung lassen sich direkt auf AniWorld ändern.
 
+Neu in 1.6.0: Auf **anilist.co/anime/…** gibt es einen QuickLink-Button, der direkt zur passenden Staffel (bzw. zu den Filmen) auf AniWorld springt.
+
 ---
 ### Einrichtung
 1. Im Popup auf **„Token bekommen"** klicken und bei AniList einloggen.
@@ -11,15 +13,6 @@ automatisch getrackt (Episoden **und** Filme), und Status, Fortschritt und Wertu
 3. AniWorld ganz normal weiter nutzen.
 
 ### Installation
-Diese vorbereitete ZIP-Datei ist **für Firefox** gedacht (ab Firefox 142). Nach der Signierung installierst du die von Mozilla bereitgestellte `.xpi` über `about:addons` → Zahnrad-Menü → „Add-on aus Datei installieren“.
+Diese vorbereitete ZIP-Datei ist **für Firefox** gedacht (ab Firefox 142). Du installierst es die `.xpi` über `about:addons` → Zahnrad-Menü → „Add-on aus Datei installieren“.
 
 Für Chrome/Edge ist weiterhin ein Manifest mit `background.service_worker` erforderlich; diese Firefox-Ausgabe ist dafür nicht vorgesehen.
-
-### Firefox-Signierung (Version 1.5.1)
-Dieses Paket ist für Firefox vorbereitet. Für Firefox Release/Beta muss es über addons.mozilla.org signiert werden.
-1. Öffne https://addons.mozilla.org/developers/ und melde dich an.
-2. Wähle „Neues Add-on“ und anschließend die Option zur Verteilung außerhalb von AMO („Unlisted“ / selbst gehostet), falls du es nur selbst verwenden möchtest.
-3. Lade `ALS-Firefox-AMO-upload.zip` hoch und folge der Validierung. Mozilla stellt nach erfolgreicher Signierung eine `.xpi`-Datei bereit.
-4. Da die Erweiterung Anfragen an AniList sendet, veröffentliche `DATENSCHUTZ.md` unter einer öffentlichen URL und trage diese bei AMO als Datenschutzerklärung ein.
-
-Die Signierung wurde nicht lokal durchgeführt; sie benötigt die Übermittlung über ein Mozilla-Konto.
