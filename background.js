@@ -490,11 +490,13 @@ async function handleTrackEpisode(payload) {
 const AW_ORIGIN = "https://aniworld.to";
 const AW_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 
-async function awCacheGet(key) {
+const AW_MISS_TTL_MS = 60 * 60 * 1000;   // „nicht gefunden" nur 1 Stunde merken
+
+async function awCacheGet(key, ttl = AW_TTL_MS) {
   try {
     const o = await chrome.storage.local.get(key);
     const v = o[key];
-    if (v && Date.now() - v.ts < AW_TTL_MS) return v.data;
+    if (v && Date.now() - v.ts < ttl) return v.data;
   } catch { /* ignorieren */ }
   return null;
 }
@@ -518,8 +520,14 @@ async function findRootAndPrior(media) {
 
   // Film/OVA/Special: erst zum Eltern-Eintrag bzw. irgendeinem Vorgänger springen
   if (!isSeries) {
-    const e = (media.relations?.edges || []).find(x => x.relationType === "PARENT" && x.node)
-           || (media.relations?.edges || []).find(x => x.relationType === "PREQUEL" && x.node);
+    const edges = (media.relations?.edges || []).filter(x => x.node);
+    const REL = ["PARENT", "PREQUEL", "ALTERNATIVE", "SIDE_STORY", "SUMMARY", "SPIN_OFF"];
+    let e = null;
+    for (const rel of REL) {                       // bevorzugt TV-Serie (Gintama-Film → Gintama TV)
+      e = edges.find(x => x.relationType === rel && TV_FORMATS.includes(x.node.format));
+      if (e) break;
+    }
+    e = e || edges.find(x => x.relationType === "PARENT") || edges.find(x => x.relationType === "PREQUEL");
     if (e) cur = (await getFull(e.node.id, "")) || media;
   }
 
@@ -577,9 +585,12 @@ function awMatchScore(result, names) {
 
 async function awFindSeries(root) {
   const names = [root.title?.romaji, root.title?.english, ...(root.synonyms || [])].filter(Boolean);
-  const keywords = [...new Set([root.title?.english, root.title?.romaji].filter(Boolean))];
+  const full = [root.title?.english, root.title?.romaji].filter(Boolean);
+  // zusätzlich Kurzform vor „:" bzw. „ - " (AniWorld findet Untertitel oft nicht)
+  const short = full.map(t => t.split(/\s*[:\-–]\s+/)[0].trim()).filter(t => t.length >= 3);
+  const keywords = [...new Set([...full, ...short])];
 
-  for (const kw of keywords.slice(0, 2)) {
+  for (const kw of keywords.slice(0, 4)) {
     const results = await awSearch(kw);
     const ranked = results
       .map(r => ({ r, s: awMatchScore(r, names) }))
@@ -627,6 +638,10 @@ async function handleFindAniWorld({ mediaId }) {
   const cached = await awCacheGet(key);
   if (cached) return { success: true, found: true, ...cached };
 
+  const missKey = `al2aw:miss:${mediaId}`;
+  const miss = await awCacheGet(missKey, AW_MISS_TTL_MS);
+  if (miss) return { success: true, found: false, ...miss };
+
   const media = await getFull(mediaId, "");
   if (!media) return { success: true, found: false };
 
@@ -634,7 +649,9 @@ async function handleFindAniWorld({ mediaId }) {
   const series = await awFindSeries(root);
   if (!series) {
     const q = media.title?.english || media.title?.romaji || "";
-    return { success: true, found: false, searchUrl: `${AW_ORIGIN}/search?q=${encodeURIComponent(q)}` };
+    const missData = { searchUrl: `${AW_ORIGIN}/search?q=${encodeURIComponent(q)}` };
+    await awCacheSet(missKey, missData);
+    return { success: true, found: false, ...missData };
   }
 
   const base = `${AW_ORIGIN}/anime/stream/${series.slug}`;

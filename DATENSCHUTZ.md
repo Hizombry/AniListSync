@@ -1,6 +1,6 @@
 # Datenschutzhinweise – AniWorld → AniList Tracker
 
-**Stand:** Version 1.6.1
+**Stand:** Version 1.6.0
 
 ## Welche Daten verarbeitet die Erweiterung?
 
